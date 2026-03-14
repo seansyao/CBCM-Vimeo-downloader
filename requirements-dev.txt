@@ -1,0 +1,10 @@
+# Development and Build Dependencies
+# Install with: pip install -r requirements-dev.txt
+
+# Build tool
+PyInstaller>=6.0.0
+
+# Testing and code quality (optional)
+# pytest>=7.0.0
+# black>=23.0.0
+# flake8>=6.0.0

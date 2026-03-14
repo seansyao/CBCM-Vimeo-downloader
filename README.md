@@ -34,6 +34,7 @@ A Python desktop application (Tkinter GUI) that downloads videos from any Vimeo 
 - Timestamped log panel with a **Clear Log** button
 - **Total estimated size** displayed in the log after fetching (counts unknown-size videos separately)
 - **Logged-in user** label shown next to the Fetch button after successful authentication
+- **GitHub README link** — clickable link in the Configuration section to view full documentation in your browser
 
 ---
 
@@ -127,11 +128,41 @@ python app.py
 
 ---
 
+## Building an Executable
+
+To create a standalone Windows EXE or other platform executables, use the build script:
+
+```bash
+python build.py
+```
+
+This will generate a single-file executable in the `dist/` folder with a default development version (`0.0.1`).
+
+### Building a Release Version
+
+Specify a version number for a release build:
+
+```bash
+python build.py 1.0.2
+```
+
+This will:
+- Update the app version to `1.0.2`
+- Create `dist/CBCMVimeoDownloader-v-1-0-2.exe` (or equivalent for other platforms)
+- Automatically clean up temporary build artifacts (`build/` folder and build.spec file)
+- Display the final executable location and file size
+
+For more details, see [BUILD.md](BUILD.md).
+
+---
+
 ## Project Structure
 
 ```
 ├── app.py            # Main GUI application
+├── build.py          # Cross-platform build script
 ├── requirements.txt  # Python dependencies
+├── BUILD.md          # Build instructions
 └── README.md
 ```
 
