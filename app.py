@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Vimeo Account Video Downloader
 Downloads all videos from a Vimeo user account using an API access token.
@@ -27,6 +28,7 @@ import vimeo
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
+APP_VERSION = "1.0.2"
 VIMEO_API_BASE = "https://api.vimeo.com"
 CHUNK_SIZE = 1024 * 1024  # 1 MB per streaming chunk
 
@@ -390,8 +392,17 @@ class VimeoDownloaderApp:
     def _build_ui(self):
         main = self._build_scroll_container()
         ttk.Label(main, text="Vimeo Account Video Downloader", style="Title.TLabel").pack(
+            pady=(0, 2)
+        )
+        ttk.Label(main, text=f"v{APP_VERSION}", font=("Segoe UI", 8), foreground="gray").pack(
             pady=(0, 10)
         )
+        # Add clickable README link with matching background
+        readme_url = "https://github.com/Factor-Y-Inc/CBCM-Vimeo-downloader?tab=readme-ov-file#vimeo-account-video-downloader"
+        bg_color = ttk.Style().lookup('TFrame', 'background')
+        link_lbl = tk.Label(main, text="📖 View README on GitHub", fg="blue", cursor="hand2", font=("Segoe UI", 9, "underline"), bg=bg_color)
+        link_lbl.pack(anchor=tk.W, pady=(0, 8), padx=10)
+        link_lbl.bind("<Button-1>", lambda e: self._open_url(readme_url))
         self._build_config_panel(main)
         self._build_video_list(main)
         self._build_progress_panel(main)
@@ -435,6 +446,9 @@ class VimeoDownloaderApp:
         self._build_output_dir_row(cfg)
         self._build_quality_row(cfg)
         self._build_fetch_row(cfg)
+    def _open_url(self, url):
+        import webbrowser
+        webbrowser.open_new(url)
 
     def _build_credentials_row(self, cfg: ttk.Frame):
         """Row 0: JSON credential file picker."""
