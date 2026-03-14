@@ -28,7 +28,7 @@ import vimeo
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.2.2"
 VIMEO_API_BASE = "https://api.vimeo.com"
 CHUNK_SIZE = 1024 * 1024  # 1 MB per streaming chunk
 
@@ -359,23 +359,37 @@ class DownloadWorker(threading.Thread):
 class VimeoDownloaderApp:
     def __init__(self, root: tk.Tk):
         self.root = root
+        self._setup_window()
+        self._initialize_state()
+        self._setup_styles()
+        self._build_ui()
+    
+    def _setup_window(self):
+        """Configure the root window properties."""
         self.root.title("Vimeo Account Video Downloader")
         self.root.geometry("980x780")
         self.root.minsize(820, 640)
-
+        
+        # Set window icon if available
+        try:
+            icon_path = os.path.join(os.path.dirname(__file__), "appicon.ico")
+            if os.path.exists(icon_path):
+                self.root.iconbitmap(icon_path)
+        except Exception:
+            pass
+    
+    def _initialize_state(self):
+        """Initialize application state variables."""
         self.videos: list = []
         self.video_check_vars: list[tk.BooleanVar] = []
-        self.locked_indices: set[int] = set()   # rows already downloaded — not re-selectable
-        self.existing_files: set[str] = set()   # .mp4 filenames in the output folder (lowercased)
+        self.locked_indices: set[int] = set()
+        self.existing_files: set[str] = set()
         self.api: VimeoAPI | None = None
         self.worker: DownloadWorker | None = None
         self.is_downloading = False
 
-        self._setup_styles()
-        self._build_ui()
-
     # ------------------------------------------------------------------
-    # Styles
+    # Styles and UI initialization
     # ------------------------------------------------------------------
     def _setup_styles(self):
         s = ttk.Style()
@@ -446,6 +460,10 @@ class VimeoDownloaderApp:
         self._build_output_dir_row(cfg)
         self._build_quality_row(cfg)
         self._build_fetch_row(cfg)
+    
+    # ------------------------------------------------------------------
+    # Configuration UI row builders
+    # ------------------------------------------------------------------
     def _open_url(self, url):
         import webbrowser
         webbrowser.open_new(url)
@@ -554,6 +572,10 @@ class VimeoDownloaderApp:
         self._build_video_toolbar(list_frame)
         self._build_video_tree(list_frame)
 
+    # ------------------------------------------------------------------
+    # Video list UI components (toolbar, tree)
+    # ------------------------------------------------------------------
+
     def _build_video_toolbar(self, list_frame: ttk.Frame):
         """Select/deselect buttons, selection count label, and filter toggle."""
         toolbar = ttk.Frame(list_frame)
@@ -639,6 +661,10 @@ class VimeoDownloaderApp:
         self.overall_bar = ttk.Progressbar(prog_frame, mode="determinate")
         self.overall_bar.pack(fill=tk.X, pady=(2, 0))
 
+    # ------------------------------------------------------------------
+    # Progress and logging UI components
+    # ------------------------------------------------------------------
+
     def _build_log_panel(self, parent: ttk.Frame):
         """Build the Log label-frame with a dark scrolled text widget."""
         log_frame = ttk.LabelFrame(parent, text="Log", padding=5)
@@ -668,9 +694,15 @@ class VimeoDownloaderApp:
         ttk.Button(btn_row, text="Clear Log",   command=self._clear_log).pack(side=tk.RIGHT)
 
     # ------------------------------------------------------------------
-    # Credentials file browser
+    # Action buttons and user interactions
     # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Credentials file browser and handling
+    # ------------------------------------------------------------------
+
     def _browse_credentials(self):
+        """Open a file dialog to select a Vimeo credentials JSON file."""
         path = filedialog.askopenfilename(
             title="Select Vimeo credentials JSON file",
             filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
@@ -1254,6 +1286,15 @@ class VimeoDownloaderApp:
 
 def main():
     root = tk.Tk()
+    
+    # Set window icon if available
+    try:
+        icon_path = os.path.join(os.path.dirname(__file__), "appicon.ico")
+        if os.path.exists(icon_path):
+            root.iconbitmap(icon_path)
+    except Exception as e:
+        pass  # Icon is optional, continue if not found
+    
     app = VimeoDownloaderApp(root)
     root.mainloop()
 
