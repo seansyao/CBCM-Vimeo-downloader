@@ -27,6 +27,7 @@ A Python desktop application (Tkinter GUI) that downloads videos from any Vimeo 
 - Per-video **progress bar** with bytes downloaded and percentage
 - Overall progress bar across all selected videos
 - **Skip already-downloaded** files automatically (checks file size)
+- **Pre-marked already-downloaded videos** — when Fetch is clicked, the app scans the output folder for existing `.mp4` files; any video whose generated filename already exists is shown as "Done ✓" (green) with its checkbox disabled and unchecked, so it is excluded from the next download batch
 - Optional **number-prefix filenames** (e.g. `001_20240315_143022_Sunday_Service.mp4`)
 - Scrollable main window — all controls remain accessible at any window size
 - Cancel in-progress downloads cleanly
@@ -116,7 +117,7 @@ python app.py
 4. Choose an **Output Folder** (defaults to `~/Downloads/Vimeo`).
 5. Optionally enter a **Limit** to fetch only the first N videos (leave empty to fetch all).
 6. Select a **Quality** preference and click **🔍 Fetch Videos**.
-7. Once the list loads, use **Select All / Deselect All** or click individual checkboxes to choose which videos to download. Review the **Video File Name** column to confirm the generated filenames.
+7. Once the list loads, use **Select All / Deselect All** or click individual checkboxes to choose which videos to download. Videos whose generated filename already exists in the output folder are pre-marked as **Done ✓** and cannot be re-selected. Review the **Video File Name** column to confirm the generated filenames.
 8. Optionally enable **Hide videos without duration / quality / size** to filter out unavailable videos.
 9. Click **⬇ Download Selected** and monitor progress in real time.
 10. Click **Open Folder** to open the output directory when done.

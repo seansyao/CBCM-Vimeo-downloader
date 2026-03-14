@@ -363,6 +363,8 @@ class VimeoDownloaderApp:
 
         self.videos: list = []
         self.video_check_vars: list[tk.BooleanVar] = []
+        self.locked_indices: set[int] = set()   # rows already downloaded — not re-selectable
+        self.existing_files: set[str] = set()   # .mp4 filenames in the output folder (lowercased)
         self.api: VimeoAPI | None = None
         self.worker: DownloadWorker | None = None
         self.is_downloading = False
@@ -770,6 +772,8 @@ class VimeoDownloaderApp:
         self.dl_btn.config(state=tk.DISABLED)
         self._log("Connecting to Vimeo API…")
 
+        self._scan_existing_files()  # snapshot the output folder before fetching
+
         base_path = self._parse_profile_url(self.profile_url_var.get().strip())
         limit, ok = self._parse_fetch_limit()
         if not ok:
@@ -791,6 +795,15 @@ class VimeoDownloaderApp:
         except ValueError:
             messagebox.showerror("Invalid Limit", "Limit must be a whole number.")
             return None, False
+
+    def _scan_existing_files(self):
+        """Snapshot all .mp4 filenames in the output folder (lowercased) for pre-marking."""
+        self.existing_files = set()
+        out_dir = self.out_dir_var.get().strip()
+        if out_dir and os.path.isdir(out_dir):
+            for fname in os.listdir(out_dir):
+                if fname.lower().endswith(".mp4"):
+                    self.existing_files.add(fname.lower())
 
     def _build_api(self, token: str, client_id: str, client_secret: str) -> "VimeoAPI":
         """Return an authenticated VimeoAPI, obtaining a token via client credentials if needed."""
@@ -895,6 +908,7 @@ class VimeoDownloaderApp:
     def _populate_list(self, videos: list):
         self.tree.delete(*self.tree.get_children())
         self.video_check_vars = []
+        self.locked_indices = set()
 
         for i, v in enumerate(videos):
             name     = v.get("name") or f"Video {i + 1}"
@@ -904,11 +918,20 @@ class VimeoDownloaderApp:
             filename = self._build_filename(raw_created, name)
             quality, size = self._best_display_quality(v)
 
-            var = tk.BooleanVar(value=True)
+            already_done = filename.lower() in self.existing_files
+            if already_done:
+                self.locked_indices.add(i)
+
+            var = tk.BooleanVar(value=not already_done)
             self.video_check_vars.append(var)
             self.tree.insert(
                 "", tk.END, iid=str(i),
-                values=("☑", name, filename, created, duration, quality, size, "Pending"),
+                values=(
+                    "☐" if already_done else "☑",
+                    name, filename, created, duration, quality, size,
+                    "Done ✓" if already_done else "Pending",
+                ),
+                tags=("done",) if already_done else (),
             )
 
         self._update_sel_label()
@@ -927,6 +950,8 @@ class VimeoDownloaderApp:
         iid = self.tree.identify_row(event.y)
         if iid and col == "#1":
             idx = int(iid)
+            if idx in self.locked_indices:
+                return  # already downloaded — not re-selectable
             self.video_check_vars[idx].set(not self.video_check_vars[idx].get())
             self._refresh_check(iid, idx)
             self._update_sel_label()
@@ -978,14 +1003,16 @@ class VimeoDownloaderApp:
 
     def _select_all(self):
         for i, var in enumerate(self.video_check_vars):
-            var.set(True)
-            self._refresh_check(str(i), i)
+            if i not in self.locked_indices:
+                var.set(True)
+                self._refresh_check(str(i), i)
         self._update_sel_label()
 
     def _deselect_all(self):
         for i, var in enumerate(self.video_check_vars):
-            var.set(False)
-            self._refresh_check(str(i), i)
+            if i not in self.locked_indices:
+                var.set(False)
+                self._refresh_check(str(i), i)
         self._update_sel_label()
 
     def _update_sel_label(self):
