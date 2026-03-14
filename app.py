@@ -549,6 +549,8 @@ class VimeoDownloaderApp:
         ttk.Button(toolbar, text="Deselect All", command=self._deselect_all).pack(side=tk.LEFT, padx=(0, 4))
         self.sel_lbl = ttk.Label(toolbar, text="No videos loaded")
         self.sel_lbl.pack(side=tk.LEFT, padx=(8, 0))
+        self.downloaded_lbl = ttk.Label(toolbar, text="", foreground="gray")
+        self.downloaded_lbl.pack(side=tk.LEFT, padx=(16, 0))
 
         self.hide_incomplete_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(
@@ -835,10 +837,32 @@ class VimeoDownloaderApp:
             self.videos = videos
             self.root.after(0, lambda: self._populate_list(videos))
             self._log(f"Found {len(videos)} video(s).")
+            self._log_total_size(videos)
         except Exception as exc:
             self._handle_fetch_exception(exc)
         finally:
             self.root.after(0, lambda: self.fetch_btn.config(state=tk.NORMAL, text="🔍  Fetch Videos"))
+
+    def _log_total_size(self, videos: list):
+        """Log the combined size of all fetchable videos."""
+        total_bytes = 0
+        unknown_count = 0
+        for v in videos:
+            downloads = v.get("download") or []
+            vids = [d for d in downloads if str(d.get("type", "")).startswith("video/")]
+            pool = vids or downloads
+            if pool:
+                best_size = max((d.get("size") or 0) for d in pool)
+                if best_size:
+                    total_bytes += best_size
+                else:
+                    unknown_count += 1
+            else:
+                unknown_count += 1
+        parts = [f"Total estimated size: {format_size(total_bytes)}"]
+        if unknown_count:
+            parts.append(f"({unknown_count} video(s) size unknown, will use yt-dlp)")
+        self._log("  ".join(parts))
 
     def _handle_fetch_exception(self, exc: Exception):
         """Log and show an appropriate error dialog for a fetch failure."""
@@ -922,12 +946,12 @@ class VimeoDownloaderApp:
             if already_done:
                 self.locked_indices.add(i)
 
-            var = tk.BooleanVar(value=not already_done)
+            var = tk.BooleanVar(value=False)
             self.video_check_vars.append(var)
             self.tree.insert(
                 "", tk.END, iid=str(i),
                 values=(
-                    "☐" if already_done else "☑",
+                    "☐",
                     name, filename, created, duration, quality, size,
                     "Done ✓" if already_done else "Pending",
                 ),
@@ -935,6 +959,33 @@ class VimeoDownloaderApp:
             )
 
         self._update_sel_label()
+        already = len(self.locked_indices)
+        total = len(videos)
+
+        # Calculate sizes: downloaded vs total
+        downloaded_bytes = 0
+        total_bytes = 0
+        pending_bytes = 0
+        for i, v in enumerate(videos):
+            downloads = v.get("download") or []
+            vids = [d for d in downloads if str(d.get("type", "")).startswith("video/")]
+            pool = vids or downloads
+            best_size = max((d.get("size") or 0) for d in pool) if pool else 0
+            total_bytes += best_size
+            if i in self.locked_indices:
+                downloaded_bytes += best_size
+            else:
+                pending_bytes += best_size
+
+        size_pct = (downloaded_bytes / total_bytes * 100) if total_bytes else 0
+        pending_str = format_size(pending_bytes) if pending_bytes else "size unknown"
+        self.downloaded_lbl.config(
+            text=(
+                f"{already} / {total} already downloaded"
+                f"  ({format_size(downloaded_bytes)} / {format_size(total_bytes)} — {size_pct:.0f}%)"
+                f"  |  est. remaining: {pending_str}"
+            )
+        )
         self._apply_filter()
         if videos:
             self.dl_btn.config(state=tk.NORMAL)
@@ -1099,7 +1150,7 @@ class VimeoDownloaderApp:
         def _do():
             self._update_video_bar(done, total, name, v_idx, v_total)
             self._update_overall_bar(v_idx, v_total, done, total)
-            self._mark_row_downloading(str(selected_idx[v_idx]))
+            self._mark_row_downloading(str(selected_idx[v_idx]), done, total)
         self.root.after(0, _do)
 
     def _update_video_bar(self, done: int, total: int, name: str, v_idx: int, v_total: int):
@@ -1124,11 +1175,14 @@ class VimeoDownloaderApp:
             text=f"Overall: {v_idx + 1} / {v_total}  ({overall_pct:.1f}%)"
         )
 
-    def _mark_row_downloading(self, iid: str):
-        """Update the treeview status cell to 'Downloading…' if not already finished."""
+    def _mark_row_downloading(self, iid: str, done: int = 0, total: int = 0):
+        """Update the treeview status cell to show downloaded/total size if not already finished."""
         vals = list(self.tree.item(iid, "values"))
         if vals[7] not in ("Done ✓", "Skipped", "Failed ✗"):
-            vals[7] = "Downloading…"
+            if total > 0:
+                vals[7] = f"{format_size(done)} / {format_size(total)}"
+            else:
+                vals[7] = "Downloading…"
             self.tree.item(iid, values=vals, tags=("downloading",))
 
     def _on_video_done(self, tree_row_idx, status):

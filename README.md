@@ -18,7 +18,7 @@ A Python desktop application (Tkinter GUI) that downloads videos from any Vimeo 
   - **Duration**
   - **Best available quality**
   - **File size**
-  - **Download status**
+  - **Download status** — color-coded: blue (Downloading), green (Done ✓), red (Failed), yellow (Skipped)
 - **Filter toggle** — hide videos that have no duration, quality, or size information
 - **Two-stage download strategy**
   1. Direct signed URL from the Vimeo API (fastest, no extra tool required)
@@ -31,7 +31,9 @@ A Python desktop application (Tkinter GUI) that downloads videos from any Vimeo 
 - Optional **number-prefix filenames** (e.g. `001_20240315_143022_Sunday_Service.mp4`)
 - Scrollable main window — all controls remain accessible at any window size
 - Cancel in-progress downloads cleanly
-- Timestamped log panel
+- Timestamped log panel with a **Clear Log** button
+- **Total estimated size** displayed in the log after fetching (counts unknown-size videos separately)
+- **Logged-in user** label shown next to the Fetch button after successful authentication
 
 ---
 
@@ -121,6 +123,7 @@ python app.py
 8. Optionally enable **Hide videos without duration / quality / size** to filter out unavailable videos.
 9. Click **⬇ Download Selected** and monitor progress in real time.
 10. Click **Open Folder** to open the output directory when done.
+11. Click **Clear Log** to clear the log panel at any time.
 
 ---
 
