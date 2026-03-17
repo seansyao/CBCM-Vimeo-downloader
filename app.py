@@ -28,7 +28,7 @@ import vimeo
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-APP_VERSION = "1.2.2"
+APP_VERSION = "0.0.1"
 VIMEO_API_BASE = "https://api.vimeo.com"
 CHUNK_SIZE = 1024 * 1024  # 1 MB per streaming chunk
 
@@ -387,6 +387,10 @@ class VimeoDownloaderApp:
         self.api: VimeoAPI | None = None
         self.worker: DownloadWorker | None = None
         self.is_downloading = False
+        # Track download progress for label updates
+        self.downloaded_count: int = 0
+        self.downloaded_bytes: int = 0
+        self.total_bytes: int = 0
 
     # ------------------------------------------------------------------
     # Styles and UI initialization
@@ -774,6 +778,22 @@ class VimeoDownloaderApp:
         return "/me/videos"
 
     # ------------------------------------------------------------------
+    # Reset progress display
+    # ------------------------------------------------------------------
+    def _reset_progress_display(self):
+        """Clear all progress and status labels to show a fresh state."""
+        self.cur_lbl.config(text="Ready")
+        self.vid_bar["value"] = 0
+        self.vid_pct_lbl.config(text="")
+        self.overall_lbl.config(text="Overall: 0 / 0")
+        self.overall_bar["value"] = 0
+        self.downloaded_lbl.config(text="")
+        # Reset download tracking variables
+        self.downloaded_count = 0
+        self.downloaded_bytes = 0
+        self.total_bytes = 0
+
+    # ------------------------------------------------------------------
     # Logging (thread-safe)
     # ------------------------------------------------------------------
     def _log(self, msg: str):
@@ -814,10 +834,14 @@ class VimeoDownloaderApp:
             return
 
         self.fetch_btn.config(state=tk.DISABLED, text="Fetching…")
-        self.tree.delete(*self.tree.get_children())
+        # Thoroughly clear the tree of all items (including detached ones)
+        for item in list(self.tree.get_children()):
+            self.tree.delete(item)
+        
         self.videos = []
         self.video_check_vars = []
         self.dl_btn.config(state=tk.DISABLED)
+        self._reset_progress_display()
         self._log("Connecting to Vimeo API…")
 
         self._scan_existing_files()  # snapshot the output folder before fetching
@@ -976,7 +1000,10 @@ class VimeoDownloaderApp:
         return best.get("quality", "—"), format_size(best.get("size") or 0)
 
     def _populate_list(self, videos: list):
-        self.tree.delete(*self.tree.get_children())
+        # Ensure tree is completely cleared (including any detached items)
+        for item in list(self.tree.get_children()):
+            self.tree.delete(item)
+        
         self.video_check_vars = []
         self.locked_indices = set()
 
@@ -994,8 +1021,14 @@ class VimeoDownloaderApp:
 
             var = tk.BooleanVar(value=False)
             self.video_check_vars.append(var)
+            
+            # Delete item if it somehow still exists
+            iid = str(i)
+            if self.tree.exists(iid):
+                self.tree.delete(iid)
+            
             self.tree.insert(
-                "", tk.END, iid=str(i),
+                "", tk.END, iid=iid,
                 values=(
                     "☐",
                     name, filename, created, duration, quality, size,
@@ -1025,13 +1058,11 @@ class VimeoDownloaderApp:
 
         size_pct = (downloaded_bytes / total_bytes * 100) if total_bytes else 0
         pending_str = format_size(pending_bytes) if pending_bytes else "size unknown"
-        self.downloaded_lbl.config(
-            text=(
-                f"{already} / {total} already downloaded"
-                f"  ({format_size(downloaded_bytes)} / {format_size(total_bytes)} — {size_pct:.0f}%)"
-                f"  |  est. remaining: {pending_str}"
-            )
-        )
+        # Store these for incremental updates during download
+        self.downloaded_count = already
+        self.downloaded_bytes = downloaded_bytes
+        self.total_bytes = total_bytes
+        self._update_downloaded_label()
         self._apply_filter()
         if videos:
             self.dl_btn.config(state=tk.NORMAL)
@@ -1231,6 +1262,20 @@ class VimeoDownloaderApp:
                 vals[7] = "Downloading…"
             self.tree.item(iid, values=vals, tags=("downloading",))
 
+    def _update_downloaded_label(self):
+        """Refresh the downloaded_lbl with current progress."""
+        total_count = len(self.videos)
+        size_pct = (self.downloaded_bytes / self.total_bytes * 100) if self.total_bytes else 0
+        pending_bytes = self.total_bytes - self.downloaded_bytes
+        pending_str = format_size(pending_bytes) if pending_bytes else "size unknown"
+        self.downloaded_lbl.config(
+            text=(
+                f"{self.downloaded_count} / {total_count} already downloaded"
+                f"  ({format_size(self.downloaded_bytes)} / {format_size(self.total_bytes)} — {size_pct:.0f}%)"
+                f"  |  est. remaining: {pending_str}"
+            )
+        )
+
     def _on_video_done(self, tree_row_idx, status):
         label_map = {"done": "Done ✓", "failed": "Failed ✗", "skipped": "Skipped"}
 
@@ -1239,6 +1284,19 @@ class VimeoDownloaderApp:
             vals = list(self.tree.item(iid, "values"))
             vals[7] = label_map.get(status, status)
             self.tree.item(iid, values=vals, tags=(status,))
+            
+            # Update progress label if download completed or skipped
+            # Only update if the video index is valid (in case fetch was clicked during download)
+            if status in ("done", "skipped") and tree_row_idx < len(self.videos):
+                self.downloaded_count += 1
+                video = self.videos[tree_row_idx]
+                downloads = video.get("download") or []
+                vids = [d for d in downloads if str(d.get("type", "")).startswith("video/")]
+                pool = vids or downloads
+                if pool:
+                    best_size = max((d.get("size") or 0) for d in pool)
+                    self.downloaded_bytes += best_size
+                self._update_downloaded_label()
 
         self.root.after(0, _do)
 
